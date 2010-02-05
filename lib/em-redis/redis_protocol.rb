@@ -228,11 +228,17 @@ module EventMachine
         call_command(argv, &blk)
       end
 
-      def call_command(argv, &blk)
-        callback { raw_call_command(argv, &blk) }
+      def maybe_lock(&blk)
+        if !EM.reactor_thread?
+          EM.schedule { maybe_lock(&blk) }
+        elsif @connected
+          yield
+        else
+          callback { yield }
+        end
       end
 
-      def raw_call_command(argv, &blk)
+      def call_command(argv, &blk)
         argv = argv.dup
 
         if MULTI_BULK_COMMANDS[argv.flatten[0].to_s]
@@ -262,8 +268,10 @@ module EventMachine
         end
 
         @logger.debug { "*** sending: #{command}" } if @logger
-        @redis_callbacks << [REPLY_PROCESSOR[argv[0]], blk]
-        send_data command
+        maybe_lock do
+          @redis_callbacks << [REPLY_PROCESSOR[argv[0]], blk]
+          send_data command
+        end
       end
 
       ##

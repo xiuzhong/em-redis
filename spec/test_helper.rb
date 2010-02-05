@@ -14,6 +14,10 @@ class TestConnection
     @sent_data ||= ''
   end
 
+  def maybe_lock
+    yield
+  end
+
   def initialize
     super
     connection_completed
