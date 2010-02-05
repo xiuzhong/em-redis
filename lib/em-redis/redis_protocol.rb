@@ -388,7 +388,8 @@ module EventMachine
           if multibulk_count == -1
             dispatch_response([])
           else
-            start_multibulk(multibulk_count)
+            @multibulk_n = multibulk_count
+            @multibulk_values = []
           end
         # Whu?
         else
@@ -413,11 +414,6 @@ module EventMachine
         processor, blk = @redis_callbacks.shift
         value = processor.call(value) if processor
         blk.call(value) if blk
-      end
-
-      def start_multibulk(multibulk_count)
-        @multibulk_n = multibulk_count
-        @multibulk_values = []
       end
 
       def unbind
