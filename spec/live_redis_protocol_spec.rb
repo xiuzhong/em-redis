@@ -53,14 +53,14 @@ EM.describe EM::Protocols::Redis, "connected to an empty db" do
 
   should "be able to 'lpush' to a nonexistent list" do
     @c.lpush("foo", "bar") do |r|
-      r.should == "OK"
+      r.should == 1
       done
     end
   end
 
   should "be able to 'rpush' to a nonexistent list" do
     @c.rpush("foo", "bar") do |r|
-      r.should == "OK"
+      r.should == 1
       done
     end
   end
@@ -222,7 +222,7 @@ EM.describe EM::Protocols::Redis, "connected to a db containing a list" do
 
   should "be able to 'rpush' onto the tail of the list" do
     @c.rpush "foo", "d" do |r|
-      r.should == "OK"
+      r.should == 4
       @c.rpop "foo" do |r|
         r.should == "d"
         done
@@ -232,7 +232,7 @@ EM.describe EM::Protocols::Redis, "connected to a db containing a list" do
 
   should "be able to 'lpush' onto the head of the list" do
     @c.lpush "foo", "d" do |r|
-      r.should == "OK"
+      r.should == 4
       @c.lpop "foo" do |r|
         r.should == "d"
         done

@@ -10,6 +10,7 @@ EM.describe EM::Protocols::Redis do
     @r['foo'] = 'bar'
   end
 
+  after { @r.close_connection }
 
   should "be able to provide a logger" do
     log = StringIO.new
