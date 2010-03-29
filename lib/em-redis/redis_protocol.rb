@@ -224,6 +224,27 @@ module EventMachine
         call_command(['quit'], &blk)
       end
 
+      def exec(&blk)
+        call_command(['exec'], &blk)
+      end
+
+      # I'm not sure autocommit is a good idea.
+      # For example:
+      #   r.multi { r.set('a', 'b') { raise "kaboom" } }
+      # will commit "a" and will stop EM
+      def multi
+        call_command(['multi'])
+        if block_given?
+          begin
+            yield self
+            exec
+          rescue Exception => e
+            discard
+            raise e
+          end
+        end
+      end
+
       def errback(&blk)
         @error_callback = blk
       end

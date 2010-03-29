@@ -645,4 +645,38 @@ EM.describe EM::Protocols::Redis do
   #   # lambda { @r.sync }.should.raise
   #   done
   # end
+
+  it "should run MULTI without a block" do
+    @r.multi
+    @r.get("key1") { |r| r.should == "QUEUED" }
+    @r.discard { done }
+  end
+
+  it "should run MULTI/EXEC with a block" do
+    @r.multi do
+      @r.set "key1", "value1"
+    end
+
+    @r.get("key1") { |r| r.should == "value1" }
+
+    begin
+      @r.multi do
+        @r.set "key2", "value2"
+        raise "Some error"
+        @r.set "key3", "value3"
+      end
+    rescue
+    end
+
+    @r.get("key2") { |r| r.should == nil }
+    @r.get("key3") { |r| r.should == nil; done}
+  end
+
+  it "should yield the Redis object when using #multi with a block" do
+    @r.multi do |multi|
+      multi.set "key1", "value1"
+    end
+
+    @r.get("key1") { |r| r.should == "value1"; done }
+  end
 end
