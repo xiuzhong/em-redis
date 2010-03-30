@@ -34,12 +34,16 @@ module EventMachine
         "zadd"      => true,
         "zincrby"   => true,
         "zrem"      => true,
-        "zscore"    => true
+        "zscore"    => true,
+        "hget"      => true,
+        "hdel"      => true,
+        "hexists"   => true
       }
 
       MULTI_BULK_COMMANDS = {
         "mset"      => true,
         "msetnx"    => true,
+        "hset"      => true,
         # these aliases aren't in redis gem
         "multi_get" => true
       }
@@ -60,6 +64,9 @@ module EventMachine
         "renamenx"  => BOOLEAN_PROCESSOR,
         "expire"    => BOOLEAN_PROCESSOR,
         "select"    => BOOLEAN_PROCESSOR, # not in redis gem
+        "hset"      => BOOLEAN_PROCESSOR,
+        "hdel"      => BOOLEAN_PROCESSOR,
+        "hexists"   => BOOLEAN_PROCESSOR,
         "keys"      => lambda {|r|
           if r.is_a?(Array)
             r
@@ -74,6 +81,9 @@ module EventMachine
             info[k.to_sym] = v
           }
           info
+        }, 
+        "hgetall"   => lambda{|r|
+          Hash[*r]
         }
       }
 
@@ -245,6 +255,24 @@ module EventMachine
         end
       end
 
+      def mset(*args, &blk)
+        hsh = args.pop if Hash === args.last
+        if hsh
+          call_command(hsh.to_a.flatten.unshift(:mset), &blk)
+        else
+          call_command(args.unshift(:mset), &blk)
+        end
+      end
+
+      def msetnx(*args, &blk)
+        hsh = args.pop if Hash === args.last
+        if hsh
+          call_command(hsh.to_a.flatten.unshift(:msetnx), &blk)
+        else
+          call_command(args.unshift(:msetnx), &blk)
+        end
+      end
+
       def errback(&blk)
         @error_callback = blk
       end
@@ -267,22 +295,19 @@ module EventMachine
       def call_command(argv, &blk)
         argv = argv.dup
 
-        if MULTI_BULK_COMMANDS[argv.flatten[0].to_s]
-          # TODO improve this code
-          argvp   = argv.flatten
-          values  = argvp.pop.to_a.flatten
-          argvp   = values.unshift(argvp[0])
-          command = ["*#{argvp.size}"]
-          argvp.each do |v|
-            v = v.to_s
-            command << "$#{get_size(v)}"
-            command << v
+        argv[0] = argv[0].to_s.downcase
+        if MULTI_BULK_COMMANDS[argv[0]]
+          command = ""
+          command << "*#{argv.size}\r\n"
+          argv.each do |a|
+            a = a.to_s
+            command << "$#{get_size(a)}\r\n"
+            command << a
+            command << "\r\n"
           end
-          command = command.map {|cmd| "#{cmd}\r\n"}.join
         else
           command = ""
           bulk = nil
-          argv[0] = argv[0].to_s.downcase
           argv[0] = ALIASES[argv[0]] if ALIASES[argv[0]]
           raise "#{argv[0]} command is disabled" if DISABLED_COMMANDS[argv[0]]
           if BULK_COMMANDS[argv[0]] and argv.length > 1

@@ -679,4 +679,54 @@ EM.describe EM::Protocols::Redis do
 
     @r.get("key1") { |r| r.should == "value1"; done }
   end
+
+  it "can set and get hash values" do
+    @r.hset("rush", "signals", "1982") { |r| r.should == true }
+    @r.hexists("rush", "signals") { |r| r.should == true }
+    @r.hget("rush", "signals") { |r| r.should == "1982"; done }
+  end
+
+  it "can delete hash values" do
+    @r.hset("rush", "YYZ", "1981")
+    @r.hdel("rush", "YYZ") { |r| r.should == true }
+    @r.hexists("rush", "YYZ") { |r| r.should == false; done }
+  end
+end
+
+# Yup, bacon can't handle nested describe blocks properly
+EM.describe EM::Protocols::Redis, "with some hash values" do
+  default_timeout 1
+
+  before do
+    @r = EM::Protocols::Redis.connect :db => 14
+    @r.flushdb
+    @r['foo'] = 'bar'
+    @r.hset("rush", "permanent waves", "1980")
+    @r.hset("rush", "moving pictures", "1981")
+    @r.hset("rush", "signals", "1982")
+  end
+
+  after { @r.close_connection }
+
+  it "can get the length of the hash" do
+    @r.hlen("rush") { |r| r.should == 3 }
+    @r.hlen("yyz") { |r| r.should == 0; done }
+  end
+
+  it "can get the keys and values of the hash" do
+    @r.hkeys("rush") { |r| r.should == ["permanent waves", "moving pictures", "signals"] }
+    @r.hvals("rush") { |r| r.should == %w[1980 1981 1982] }
+    @r.hvals("yyz") { |r| r.should == []; done }
+  end
+
+  it "returns a hash for HGETALL" do
+    @r.hgetall("rush") do |r|
+        r.should == {
+        "permanent waves" => "1980",
+        "moving pictures" => "1981",
+        "signals"         => "1982"
+      }
+    end
+    @r.hgetall("yyz") { |r| r.should == {}; done }
+  end
 end
