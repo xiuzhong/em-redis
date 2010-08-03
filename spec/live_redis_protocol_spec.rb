@@ -417,7 +417,7 @@ EM.describe EM::Protocols::Redis, "connected to a db containing three linked lis
 
   should "be able to get keys selectively" do
     @c.keys "a_*" do |r|
-      r.should == ["a_sort", "a_data"]
+      r.should == ["a_sort", "a_data"].sort
       done
     end
   end
