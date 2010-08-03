@@ -388,6 +388,7 @@ module EventMachine
         @logger.debug { "Connected to #{@host}:#{@port}" } if @logger
 
         @redis_callbacks = []
+        @previous_multibulks = []
         @multibulk_n     = false
         @reconnecting    = false
         @connected       = true
@@ -447,6 +448,9 @@ module EventMachine
           if multibulk_count == -1 || multibulk_count == 0
             dispatch_response([])
           else
+            if @multibulk_n
+              @previous_multibulks << [@multibulk_n, @multibulk_values]
+            end
             @multibulk_n = multibulk_count
             @multibulk_values = []
           end
@@ -464,7 +468,11 @@ module EventMachine
 
           if @multibulk_n == 0
             value = @multibulk_values
-            @multibulk_n = false
+            @multibulk_n,@multibulk_values = @previous_multibulks.pop
+            if @multibulk_n
+              dispatch_response(value)
+              return
+            end
           else
             return
           end

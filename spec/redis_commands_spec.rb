@@ -730,3 +730,32 @@ EM.describe EM::Protocols::Redis, "with some hash values" do
     @r.hgetall("yyz") { |r| r.should == {}; done }
   end
 end
+
+EM.describe EM::Protocols::Redis, "with nested multi-bulk response" do
+  default_timeout 1
+
+  before do
+    @r = EM::Protocols::Redis.connect :db => 14
+    @r.flushdb
+    @r.set 'user:one:id', 'id-one'
+    @r.set 'user:two:id', 'id-two'
+    @r.sadd "user:one:interests", "first-interest"
+    @r.sadd "user:one:interests", "second-interest"
+    @r.sadd "user:two:interests", "third-interest"
+  end
+
+  after { @r.close_connection }
+
+  it "returns array of arrays" do
+    @r.multi
+    @r.smembers "user:one:interests"
+    @r.smembers "user:two:interests"
+    @r.exec do |user_interests|
+      user_interests.should == [["second-interest", "first-interest"], ['third-interest']]
+    end
+    @r.mget("user:one:id", "user:two:id") do |user_ids|
+      user_ids.should == ['id-one', 'id-two']
+      done
+    end
+  end
+end
