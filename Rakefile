@@ -1,35 +1,20 @@
-# Look in the tasks/setup.rb file for the various options that can be
-# configured in this Rakefile. The .rake files in the tasks directory
-# are where the options are used.
-
-begin
-  require 'bones'
-rescue LoadError
-  abort '### Please install the "bones" gem ###'
-end
-
-ensure_in_path 'lib'
-require 'em-redis'
+require 'rake/gempackagetask'
+require 'rubygems/specification'
+require File.expand_path('../lib/em-redis', __FILE__)
 
 task :default => ['redis:test']
 
-Bones {
-  name 'em-redis'
-  authors ['Jonathan Broad', 'Eugene Pimenov']
-  email 'libc@me.com'
-  url 'http://github.com/libc/em-redis'
-  summary 'An eventmachine-based implementation of the Redis protocol'
-  description summary
-  version EMRedis::VERSION
+spec = eval(File.read('em-redis.gemspec'))
+Rake::GemPackageTask.new(spec) do |pkg|
+  pkg.gem_spec = spec
+end
 
-  readme_file  'README.rdoc'
-  ignore_file  '.gitignore'
+desc "install the gem locally"
+task :install => [:package] do
+  require version_rb
+  sh %{sudo gem install pkg/em-redis-#{EMRedis::VERSION}}
+end
 
-  depend_on 'eventmachine', '>=0.12.10'
-
-  depend_on "bacon", :development => true
-  depend_on "em-spec", :development => true 
-}
 
 namespace :redis do
   desc "Test em-redis against a live Redis"
