@@ -18,36 +18,6 @@ module EventMachine
       ASTERISK = "*".freeze
       DELIM    = "\r\n".freeze
 
-      BULK_COMMANDS = {
-        "set"       => true,
-        "setnx"     => true,
-        "rpush"     => true,
-        "lpush"     => true,
-        "lset"      => true,
-        "lrem"      => true,
-        "sadd"      => true,
-        "srem"      => true,
-        "sismember" => true,
-        "echo"      => true,
-        "getset"    => true,
-        "smove"     => true,
-        "zadd"      => true,
-        "zincrby"   => true,
-        "zrem"      => true,
-        "zscore"    => true,
-        "hget"      => true,
-        "hdel"      => true,
-        "hexists"   => true
-      }
-
-      MULTI_BULK_COMMANDS = {
-        "mset"      => true,
-        "msetnx"    => true,
-        "hset"      => true,
-        # these aliases aren't in redis gem
-        "multi_get" => true
-      }
-
       BOOLEAN_PROCESSOR = lambda{|r| r == 1 }
 
       REPLY_PROCESSOR = {
