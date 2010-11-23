@@ -7,29 +7,16 @@ EM.describe EM::Protocols::Redis do
     @c = TestConnection.new
   end
 
-  # Inline request protocol
-  should 'send inline commands correctly' do
-    @c.call_command(["GET", 'a'])
-    @c.sent_data.should == "get a\r\n"
-    done
-  end
-
-  should "space-separate multiple inline arguments" do
-    @c.call_command(["GET", 'a', 'b', 'c'])
-    @c.sent_data.should == "get a b c\r\n"
-    done
-  end
-
-  # Multiline request protocol
-  should "send multiline commands correctly" do
+  # Converting array of arguments to Redis protocol
+  should "send commands correctly" do
     @c.call_command(["SET", "foo", "abc"])
-    @c.sent_data.should == "set foo 3\r\nabc\r\n"
+    @c.sent_data.should == "*3\r\n$3\r\nset\r\n$3\r\nfoo\r\n$3\r\nabc\r\n"
     done
   end
 
-  should "send integers in multiline commands correctly" do
+  should "send integers in commands correctly" do
     @c.call_command(["SET", "foo", 1_000_000])
-    @c.sent_data.should == "set foo 7\r\n1000000\r\n"
+    @c.sent_data.should == "*3\r\n$3\r\nset\r\n$3\r\nfoo\r\n$7\r\n1000000\r\n"
     done
   end
 
@@ -38,13 +25,13 @@ EM.describe EM::Protocols::Redis do
   # SORT
   should "send sort command" do
     @c.sort "foo"
-    @c.sent_data.should == "sort foo\r\n"
+    @c.sent_data.should == "*2\r\n$4\r\nsort\r\n$3\r\nfoo\r\n"
     done
   end
 
   should "send sort command with all optional parameters" do
     @c.sort "foo", :by => "foo_sort_*", :limit => [0, 10], :get => "data_*", :order => "DESC ALPHA"
-    @c.sent_data.should == "sort foo BY foo_sort_* GET data_* DESC ALPHA LIMIT 0 10\r\n"
+    @c.sent_data.should == "*11\r\n$4\r\nsort\r\n$3\r\nfoo\r\n$2\r\nBY\r\n$10\r\nfoo_sort_*\r\n$3\r\nGET\r\n$6\r\ndata_*\r\n$4\r\nDESC\r\n$5\r\nALPHA\r\n$5\r\nLIMIT\r\n$1\r\n0\r\n$2\r\n10\r\n"
     done
   end
 

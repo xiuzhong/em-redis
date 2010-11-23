@@ -1,4 +1,5 @@
 require File.expand_path(File.dirname(__FILE__) + "/test_helper.rb")
+require 'stringio'
 require 'logger'
 
 EM.describe EM::Protocols::Redis do

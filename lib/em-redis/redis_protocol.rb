@@ -186,11 +186,11 @@ module EventMachine
       def sort(key, options={}, &blk)
         cmd = ["SORT"]
         cmd << key
-        cmd << "BY #{options[:by]}" if options[:by]
-        cmd << "GET #{[options[:get]].flatten * ' GET '}" if options[:get]
-        cmd << "#{options[:order]}" if options[:order]
-        cmd << "LIMIT #{options[:limit].join(' ')}" if options[:limit]
-        call_command(cmd, &blk)
+        cmd << ["BY", options[:by]] if options[:by]
+        cmd << [options[:get]].flatten.map { |key| ["GET", key] } if options[:get]
+        cmd << options[:order].split(/\s+/) if options[:order]
+        cmd << ["LIMIT", options[:limit]] if options[:limit]
+        call_command(cmd.flatten, &blk)
       end
 
       def incr(key, increment = nil, &blk)
@@ -296,26 +296,16 @@ module EventMachine
         argv = argv.dup
 
         argv[0] = argv[0].to_s.downcase
-        if MULTI_BULK_COMMANDS[argv[0]]
-          command = ""
-          command << "*#{argv.size}\r\n"
-          argv.each do |a|
-            a = a.to_s
-            command << "$#{get_size(a)}\r\n"
-            command << a
-            command << "\r\n"
-          end
-        else
-          command = ""
-          bulk = nil
-          argv[0] = ALIASES[argv[0]] if ALIASES[argv[0]]
-          raise "#{argv[0]} command is disabled" if DISABLED_COMMANDS[argv[0]]
-          if BULK_COMMANDS[argv[0]] and argv.length > 1
-            bulk = argv[-1].to_s
-            argv[-1] = get_size(bulk)
-          end
-          command << "#{argv.join(' ')}\r\n"
-          command << "#{bulk}\r\n" if bulk
+        argv[0] = ALIASES[argv[0]] if ALIASES[argv[0]]
+        raise "#{argv[0]} command is disabled" if DISABLED_COMMANDS[argv[0]]
+
+        command = ""
+        command << "*#{argv.size}\r\n"
+        argv.each do |a|
+          a = a.to_s
+          command << "$#{get_size(a)}\r\n"
+          command << a
+          command << "\r\n"
         end
 
         @logger.debug { "*** sending: #{command}" } if @logger
