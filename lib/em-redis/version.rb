@@ -1,3 +1,3 @@
 module EMRedis
-  VERSION = '0.2.3' unless defined? ::EMRedis::VERSION
+  VERSION = '0.3.0' unless defined? ::EMRedis::VERSION
 end
