@@ -51,7 +51,7 @@ module EventMachine
             info[k.to_sym] = v
           }
           info
-        }, 
+        },
         "hgetall"   => lambda{|r|
           Hash[*r]
         }
@@ -119,7 +119,6 @@ module EventMachine
         "list_remove"          => "lrem",
         "index"                => "lindex",
         "trim"                 => "ltrim",
-        "list_range"           => "lrange",
         "range"                => "lrange",
         "list_len"             => "llen",
         "len"                  => "llen",
@@ -133,7 +132,6 @@ module EventMachine
         "member?"              => "sismember",
         "intersect"            => "sinter",
         "intersect_and_store"  => "sinterstore",
-        "members"              => "smembers",
         "exists?"              => "exists"
       }
 
@@ -402,7 +400,7 @@ module EventMachine
         #e.g. :8
         when COLON
           dispatch_response(Integer(reply_args))
-        #e.g. *2\r\n$1\r\na\r\n$1\r\nb\r\n 
+        #e.g. *2\r\n$1\r\na\r\n$1\r\nb\r\n
         when ASTERISK
           multibulk_count = Integer(reply_args)
           if multibulk_count == -1 || multibulk_count == 0
