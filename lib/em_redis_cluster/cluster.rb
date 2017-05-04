@@ -34,9 +34,9 @@ module EventMachine
 
       attr_reader :slots_initialized, :startup_nodes
 
-      def initialize(startup_nodes, connections, opt={})
+      def initialize(startup_nodes, opt={})
         @startup_nodes = startup_nodes
-        @max_connections = connections
+        
         @connections = {}
         @opt = opt
         @refresh_table_asap = false
