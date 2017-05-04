@@ -303,7 +303,8 @@ module EventMachine
           command << "\r\n"
         end
 
-        @logger.debug { "*** sending: #{command}" } if @logger
+        log :debug, "sending: #{command}"
+
         maybe_lock do
           @redis_callbacks << [REPLY_PROCESSOR[argv[0]], blk]
           send_data command
@@ -351,6 +352,10 @@ module EventMachine
         auth_and_select_db
       end
 
+      def log(severity, msg)
+        @logger && @logger.send(severity, "em_redis_cluster: #{msg}")
+      end
+
       def auth_and_select_db
         call_command(["auth", @password]) if @password
         call_command(["select", @db]) unless @db == 0
@@ -358,7 +363,7 @@ module EventMachine
       private :auth_and_select_db
 
       def connection_completed
-        @logger.debug { "Connected to #{@host}:#{@port}" } if @logger
+        log :debug, "Connected to #{@host}:#{@port}"
 
         @redis_callbacks = []
         @previous_multibulks = []
@@ -386,7 +391,7 @@ module EventMachine
       end
 
       def process_cmd(line)
-        @logger.debug { "*** processing #{line}" } if @logger
+        log :debug, "processing #{line}"
         # first character of buffer will always be the response type
         reply_type = line[0, 1]
         reply_args = line.slice(1..-3) # remove type character and \r\n
@@ -457,7 +462,7 @@ module EventMachine
       end
 
       def unbind(reason)
-        @logger.debug { "Disconnected" }  if @logger
+        log :debug, "Disconnected"
 
         if @connected || @reconnecting
           EM.add_timer(1) do

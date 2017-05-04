@@ -45,7 +45,7 @@ module EventMachine
       end
 
       def get_redis_link(host, port)
-        EM::Protocols::Redis.connect(:host => host, :port => port)
+        EM::Protocols::Redis.connect({:host => host, :port => port}.merge @opt)
       end
 
       # Given a node (that is just a Ruby hash) give it a name just

@@ -75,7 +75,7 @@ EM.describe EM::Protocols::Redis, "connected to an empty db" do
 
   should "be able to add a member to a nonexistent set" do
     @c.sadd("set_foo", "bar") do |r|
-      r.should == true
+      r.should == 1
       done
     end
   end
@@ -311,9 +311,9 @@ EM.describe EM::Protocols::Redis, "connected to a db containing two sets" do
 
   should "be able to add a new member to a set unless it is a duplicate" do
     @c.sadd("foo", "d") do |r|
-      r.should == true # success
+      r.should == 1 # success
       @c.sadd("foo", "a") do |r|
-        r.should == false # failure
+        r.should == 0 # failure
         @c.scard("foo") do |r|
           r.should == 4
           done
@@ -324,9 +324,9 @@ EM.describe EM::Protocols::Redis, "connected to a db containing two sets" do
 
   should "be able to remove a set member if it exists" do
     @c.srem("foo", "a") do |r|
-      r.should == true
+      r.should == 1
       @c.srem("foo", "z") do |r|
-        r.should == false
+        r.should == 0
         @c.scard("foo") do |r|
           r.should == 2
           done

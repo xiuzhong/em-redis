@@ -1,4 +1,4 @@
-require File.expand_path(File.dirname(__FILE__) + "/../lib/em-redis")
+require File.expand_path(File.dirname(__FILE__) + "/../lib/em_redis_cluster")
 require 'em-spec/bacon'
 
 EM.spec_backend = EventMachine::Spec::Bacon
