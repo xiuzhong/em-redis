@@ -1,18 +1,18 @@
-require 'rake/gempackagetask'
+require 'rubygems/package_task'
 require 'rubygems/specification'
-require File.expand_path('../lib/em-redis', __FILE__)
+require File.expand_path('../lib/em_redis_cluster', __FILE__)
 
 task :default => ['redis:test']
 
-spec = eval(File.read('em-redis.gemspec'))
-Rake::GemPackageTask.new(spec) do |pkg|
+spec = eval(File.read('em-redis-cluster.gemspec'))
+Gem::PackageTask.new(spec) do |pkg|
   pkg.gem_spec = spec
 end
 
 desc "install the gem locally"
 task :install => [:package] do
   require version_rb
-  sh %{sudo gem install pkg/em-redis-#{EMRedis::VERSION}}
+  sh %{sudo gem install pkg/em-redis-cluster-#{EMRedis::VERSION}}
 end
 
 

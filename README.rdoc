@@ -1,4 +1,4 @@
-== EM-REDIS
+== EM-REDIS-CLUSTER
 
 == DESCRIPTION:
 
@@ -15,12 +15,14 @@ parallelization without threads.
 
 Implements most Redis commands (see {the list of available commands here}[http://code.google.com/p/redis/wiki/CommandReference] with the notable
 exception of MONITOR.
+Implements Redis Cluster by integrating {antirez's job}[https://github.com/antirez/redis-rb-cluster] into em-redis.
 
 == SYNOPSIS:
 
-Like any Deferrable eventmachine-based protocol implementation, using EM-Redis involves making calls and passing blocks that serve as callbacks when the call returns.  
+Like any Deferrable eventmachine-based protocol implementation, using EM-Redis-Cluster involves making calls and passing blocks that serve as callbacks when the call returns.  
 
-  require 'em-redis'
+  # Non-cluster mode
+  require 'em_redis_cluster'
 
   EM.run do
     redis = EM::Protocols::Redis.connect
@@ -39,6 +41,20 @@ Like any Deferrable eventmachine-based protocol implementation, using EM-Redis i
     end
   end
 
+  # Cluster mode
+  startup_nodes = [
+    {:host => "127.0.0.1", :port => 7000},
+    {:host => "127.0.0.1", :port => 7001},
+  ]
+
+  rc = EM::Protocols::RedisCluster.new(startup_nodes) do |r|
+    # callback when cluster slots information has been retrieved
+    rc.mapped_hmset("device:#{sid}", {id: sid.to_s, timestamp: Time.now.to_s}) do |rsp|
+      p rsp
+      EM.stop
+    end
+  end
+
 To run tests on a Redis server (currently compatible with 2.2)
 
   rake
@@ -52,7 +68,7 @@ currently in the form of bacon specs.
 
 == INSTALL:
 
-  sudo gem install em-redis
+  sudo gem install em_redis_cluster
 
 == LICENSE:
 

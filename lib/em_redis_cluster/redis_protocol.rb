@@ -1,9 +1,12 @@
 require 'rubygems'
 require 'eventmachine'
 
+require_relative 'redis_error'
+
 module EventMachine
   module Protocols
     module Redis
+
       include EM::Deferrable
 
       ##
@@ -23,8 +26,8 @@ module EventMachine
       REPLY_PROCESSOR = {
         "exists"    => BOOLEAN_PROCESSOR,
         "sismember" => BOOLEAN_PROCESSOR,
-        "sadd"      => BOOLEAN_PROCESSOR,
-        "srem"      => BOOLEAN_PROCESSOR,
+        # "sadd"      => BOOLEAN_PROCESSOR,
+        # "srem"      => BOOLEAN_PROCESSOR,
         "smove"     => BOOLEAN_PROCESSOR,
         "zadd"      => BOOLEAN_PROCESSOR,
         "zrem"      => BOOLEAN_PROCESSOR,
@@ -179,6 +182,30 @@ module EventMachine
         call_command(['auth', password], &blk)
       end
 
+      def sadd(key, member)
+        call_command([:sadd, key, *member]) do |s|
+          yield s if block_given?
+        end
+      end
+
+      def srem(key, member)
+        call_command([:srem, key, *member]) do |s|
+          yield s if block_given?
+        end
+      end
+
+      def hmset(key, value)
+        call_command([:hmset, key, *value.to_a.flatten]) do |s|
+          yield s if block_given?
+        end
+      end
+
+      def mapped_hmset(key, hash)
+        hmset(key, hash.to_a.flatten) do |s|
+          yield s if block_given?
+        end
+      end
+
       # Similar to memcache.rb's #get_multi, returns a hash mapping
       # keys to values.
       def mapped_mget(*keys)
@@ -282,18 +309,6 @@ module EventMachine
           send_data command
         end
       end
-
-      ##
-      # errors
-      #########################
-
-      class ParserError < StandardError; end
-      class ProtocolError < StandardError; end
-
-      class RedisError < StandardError
-        attr_accessor :code
-      end
-
 
       ##
       # em hooks
@@ -441,8 +456,9 @@ module EventMachine
         blk.call(value) if blk
       end
 
-      def unbind
+      def unbind(reason)
         @logger.debug { "Disconnected" }  if @logger
+
         if @connected || @reconnecting
           EM.add_timer(1) do
             @logger.debug { "Reconnecting to #{@host}:#{@port}" }  if @logger
@@ -453,8 +469,7 @@ module EventMachine
           @reconnecting = true
           @deferred_status = nil
         else
-          # TODO: get rid of this exception
-          raise 'Unable to connect to redis server'
+          @error_callback.call ConnectionError("Unable to connect to redis server: #{reason}")
         end
       end
 
