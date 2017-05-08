@@ -226,9 +226,9 @@ module EventMachine
         conn_for_next_cmd = nil
         try_random_node = false
 
+
         fiber = Fiber.new do
           while ttl > 0 do
-            ttl -= 1
             key = get_key_from_command(argv)
 
             # raise Redis::ParserError.new("No way to dispatch this command to Redis Cluster.") unless key
@@ -238,7 +238,6 @@ module EventMachine
             #   Start the redirected query with the ASKING command.
             #   Don't yet update local client tables to map hash slot 8 to B.
             conn_for_next_cmd ||= (key ? get_connection_by_key(key) : get_random_connection)
-            conn_for_next_cmd.errback {|e| fiber.resume(e)}
             conn_for_next_cmd.asking if asking
             conn_for_next_cmd.send(argv[0].to_sym, *argv[1..-1]) {|rsp| fiber.resume(rsp) }
 
@@ -247,7 +246,7 @@ module EventMachine
             conn_for_next_cmd = nil
             asking = false
 
-            if rsp.is_a?(StandardError)
+            if rsp.is_a?(RedisError)
               errv = rsp.to_s.split
               if errv[0] == "MOVED" || errv[0] == "ASK"
                 newslot = errv[1].to_i
@@ -263,14 +262,18 @@ module EventMachine
                 end
               else
                 callback && callback.call(rsp)
+                break
               end
             else
               callback && callback.call(rsp)
               break
             end
+            
+            ttl -= 1
           end
+          
+          callback && callback.call(rsp) if ttl == 0
 
-          raise "Too many Cluster redirections? (last error: #{e})" if ttl == 0
           initialize_slots_cache if @refresh_table_asap
         end
 

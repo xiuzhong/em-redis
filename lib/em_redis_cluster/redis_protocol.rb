@@ -303,7 +303,7 @@ module EventMachine
           command << "\r\n"
         end
 
-        log :debug, "sending: #{command}"
+        # log :debug, "sending: #{command}"
 
         maybe_lock do
           @redis_callbacks << [REPLY_PROCESSOR[argv[0]], blk]
@@ -337,19 +337,14 @@ module EventMachine
       end
 
       def initialize(options = {})
-        @host           = options[:host]
-        @port           = options[:port]
-        @db             = (options[:db] || 0).to_i
-        @password       = options[:password]
-        @logger         = options[:logger]
-        @reconn_timer   = options[:reconn_timer] || 0.2 # reconnect after second
-        @redis_callbacks= []
-
-        @error_callback = lambda do |code|
-          err = RedisError.new
-          err.code = code
-          raise err, "Redis server returned error code: #{code}"
-        end
+        @host             = options[:host]
+        @port             = options[:port]
+        @db               = (options[:db] || 0).to_i
+        @password         = options[:password]
+        @logger           = options[:logger]
+        @reconn_timer     = options[:reconn_timer] || 0.2 # reconnect after second
+        @redis_callbacks  = []
+        @error_callback   = nil
 
         # These commands should be first
         auth_and_select_db
@@ -367,11 +362,7 @@ module EventMachine
 
       def connection_completed
         log :debug, "Connected to #{@host}:#{@port}"
-
-        while @redis_callbacks.size > 0
-          processor, blk = @redis_callbacks.shift
-          blk.call(TimeoutError.new) if blk
-        end
+        dispatch_on_conn_err
 
         @previous_multibulks = []
         @multibulk_n     = false
@@ -397,7 +388,7 @@ module EventMachine
       end
 
       def process_cmd(line)
-        log :debug, "processing #{line}"
+        # log :debug, "processing #{line}"
         # first character of buffer will always be the response type
         reply_type = line[0, 1]
         reply_args = line.slice(1..-3) # remove type character and \r\n
@@ -405,8 +396,9 @@ module EventMachine
 
         #e.g. -MISSING
         when MINUS
-          @redis_callbacks.shift # throw away the cb?
-          @error_callback.call(reply_args)
+          excep = RedisError.new(reply_args)
+          dispatch_response(excep)
+          @error_callback && @error_callback.call(excep)
         # e.g. +OK
         when PLUS
           dispatch_response(reply_args)
@@ -440,8 +432,9 @@ module EventMachine
           end
         # Whu?
         else
-          # TODO: get rid of this exception
-          raise ProtocolError, "reply type not recognized: #{line.strip}"
+          excep = ProtocolError.new("unknown reply_type: #{reply_type}")
+          dispatch_response(excep)
+          @error_callback && @error_callback.call(excep)
         end
       end
 
@@ -452,7 +445,7 @@ module EventMachine
 
           if @multibulk_n == 0
             value = @multibulk_values
-            @multibulk_n,@multibulk_values = @previous_multibulks.pop
+            @multibulk_n, @multibulk_values = @previous_multibulks.pop
             if @multibulk_n
               dispatch_response(value)
               return
@@ -468,8 +461,9 @@ module EventMachine
       end
 
       def unbind(reason)
-        log :debug, "Disconnected"
-        
+        log :debug, "Disconnected from #{@host}:#{@port}: #{reason}"
+        dispatch_on_conn_err
+
         # keep re-connecting
         EM.add_timer(@reconn_timer) do
           @logger.debug { "Reconnecting to #{@host}:#{@port}" }  if @logger
@@ -481,6 +475,13 @@ module EventMachine
       end
 
       private
+        def dispatch_on_conn_err
+          while @redis_callbacks.size > 0
+            processor, blk = @redis_callbacks.shift
+            blk && blk.call(ConnectError.new("Connection error"))
+          end
+        end
+
         def get_size(string)
           string.respond_to?(:bytesize) ? string.bytesize : string.size
         end

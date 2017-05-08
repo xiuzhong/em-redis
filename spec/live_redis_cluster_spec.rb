@@ -113,7 +113,7 @@ EM.describe EM::Protocols::Redis, "connected to a cluster containing some simple
 
   should "be NOT able to fetch the values of multiple keys cross slots" do
     @c.mget "a", "x" do |r|
-      r.should == "CROSSSLOT Keys in request don't hash to the same slot"
+      r.message.should == "CROSSSLOT Keys in request don't hash to the same slot"
       done
     end
   end
@@ -177,7 +177,7 @@ EM.describe EM::Protocols::Redis, "connected to a cluster containing some simple
 
   should "be NOT able to rename a key to another in different slot" do
     @c.rename "a", "x" do |r|
-      r.should == "CROSSSLOT Keys in request don't hash to the same slot"
+      r.message.should == "CROSSSLOT Keys in request don't hash to the same slot"
       done
     end
   end
@@ -367,7 +367,7 @@ EM.describe EM::Protocols::Redis, "connected to a db containing two sets" do
 
   should "be NOT able to find the sets' intersection if they're on different slots" do
     @c.sinter("foo", "bar") do |r|
-      r.should == "CROSSSLOT Keys in request don't hash to the same slot"
+      r.message.should == "CROSSSLOT Keys in request don't hash to the same slot"
       done
     end
   end
@@ -391,7 +391,7 @@ EM.describe EM::Protocols::Redis, "connected to a db containing two sets" do
 
   should "be NOT able to find the sets' union if they're on different slots" do
     @c.sunion("foo", "bar") do |r|
-      r.should == "CROSSSLOT Keys in request don't hash to the same slot"
+      r.message.should == "CROSSSLOT Keys in request don't hash to the same slot"
       done
     end
   end
@@ -424,7 +424,7 @@ end
 
 EM.describe EM::Protocols::Redis, "when connection is torn down" do
   before do
-    @c = EM::Protocols::RedisCluster.new([ {:host => "127.0.0.1", :port => 7000} ], reconn_timer: 1) 
+    @c = EM::Protocols::RedisCluster.new([ {:host => "127.0.0.1", :port => 7002} ], reconn_timer: 1) 
   end
 
   should "reconnect automatically" do
@@ -451,5 +451,26 @@ EM.describe EM::Protocols::Redis, "when connection is torn down" do
     end
   end
 
+  should "trigger callback of command sent before connection torn-down is detected" do
+    #simulate disconnect
+    @c.set('foo', 'a') do
+      @c.conn_close('foo')
+      EM.add_timer(0.5) do
+        @c.any_error?.should == true
+        @c.conn_status.class.should == Hash
+        @c.conn_status[@c.get_slotname_by_key('foo')].should == false
+        @c.conn_error?('foo').should == true
+      end
+
+      connerr = lambda { |obj| obj.is_a?(EventMachine::Protocols::ConnectError)}
+
+      @c.get('foo') do |r|
+        r.should.be.a connerr
+      end
+
+      EM.add_timer(2) {done}
+
+    end
+  end
 end
 
