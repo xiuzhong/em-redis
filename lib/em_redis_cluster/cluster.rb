@@ -32,16 +32,34 @@ module EventMachine
       RedisClusterRequestTTL = 16
       RedisClusterDefaultTimeout = 1
 
-      attr_reader :slots_initialized, :startup_nodes
-
       def initialize(startup_nodes, opt={})
         @startup_nodes = startup_nodes
         
         @connections = {}
         @opt = opt
+        
+        # Redis Cluster does not support multiple databases like the stand alone version of Redis. 
+        # There is just database 0 and the SELECT command is not allowed
+        @opt.delete(:db)
+
         @refresh_table_asap = false
         @slots_initialized = false
-        initialize_slots_cache {|r| yield(r) if block_given?}
+        @command_before_init = []
+        initialize_slots_cache {|c| yield(c) if block_given?}
+      end
+
+      def ready?
+        @slots_initialized
+      end
+
+      def any_error?
+        ready? && all_connections.any?{|c| c.error?}
+      end
+
+      def conn_status
+        status = {}
+        @connections.each {|k,c| status[k] = !c.error?}
+        status
       end
 
       def get_redis_link(host, port)
@@ -98,7 +116,16 @@ module EventMachine
               next
             end
           end
-          yield(@slots_initialized) if block_given?
+
+          yield(self) if block_given?
+
+          # run cached commands before initialization
+          if ready?
+            @command_before_init.each do |argv|
+              argv.respond_to?(:call) ? argv.call : send_cluster_command(argv)
+            end
+          end
+          @command_before_init = []
         end
 
         fiber.resume
@@ -149,7 +176,7 @@ module EventMachine
       # in the context of cluster, nil is returned.
       def get_key_from_command(argv)
         case argv[0].to_s.downcase
-        when "info","multi","exec","slaveof","config","shutdown"
+        when "info","multi","exec","slaveof","config","shutdown","select"
           nil
         else
           # Unknown commands, and all the commands having the key
@@ -167,11 +194,8 @@ module EventMachine
       # Given a slot return the link (Redis instance) to the mapped node.
       # Make sure to create a connection with the node if we don't have
       # one.
-      def get_connection_by_slot(slot)
-        n = @slots[slot]
-
-        if n
-          set_node_name!(n)
+      def get_connection_by_key(key)
+        if n = @slots[keyslot(key)]
           @connections[n[:name]] ||= get_redis_link(n[:host], n[:port])
         else
           # If we don't know what the mapping is, return a random node.
@@ -182,6 +206,13 @@ module EventMachine
       def get_connection_by_node(n)
         set_node_name!(n)
         @connections[n[:name]] ||= get_redis_link(n[:host], n[:port])
+      end
+
+      def all_connections
+        @startup_nodes.each do |n|
+          @connections[n[:name]] ||= get_redis_link(n[:host], n[:port])
+        end
+        @connections.values
       end
 
       # Dispatch commands.
@@ -200,13 +231,13 @@ module EventMachine
             ttl -= 1
             key = get_key_from_command(argv)
 
-            raise Redis::ParserError.new("No way to dispatch this command to Redis Cluster.") unless key
+            # raise Redis::ParserError.new("No way to dispatch this command to Redis Cluster.") unless key
 
             # The full semantics of ASK redirection from the point of view of the client is as follows:
             #   If ASK redirection is received, send only the query that was redirected to the specified node but continue sending subsequent queries to the old node.
             #   Start the redirected query with the ASKING command.
             #   Don't yet update local client tables to map hash slot 8 to B.
-            conn_for_next_cmd ||= get_connection_by_slot(keyslot(key))
+            conn_for_next_cmd ||= (key ? get_connection_by_key(key) : get_random_connection)
             conn_for_next_cmd.errback {|e| fiber.resume(e)}
             conn_for_next_cmd.asking if asking
             conn_for_next_cmd.send(argv[0].to_sym, *argv[1..-1]) {|rsp| fiber.resume(rsp) }
@@ -228,10 +259,10 @@ module EventMachine
                 else
                   # Serve replied with MOVED. It's better for us to ask for CLUSTER NODES the next time.
                   @refresh_table_asap = true
-                  @slots[newslot] = {host: node_ip, port: node_port.to_i}
+                  @slots[newslot] = set_node_name!(host: node_ip, port: node_port.to_i)
                 end
               else
-                raise "!!! REDIS #{e}"
+                callback && callback.call(rsp)
               end
             else
               callback && callback.call(rsp)
@@ -253,8 +284,40 @@ module EventMachine
       # without GET or BY, and so forth).
       def method_missing(*argv, &blk)
         argv << blk
-        send_cluster_command(argv)
+        if ready?
+          send_cluster_command(argv)
+        else
+          @command_before_init << argv
+        end
       end
+
+      [:flushdb, :flushall].each do |fn|
+        define_method fn do
+          if ready?
+            all_connections.each {|c| c.send(fn)}
+          else
+            @command_before_init << proc {self.send(fn)}
+          end
+        end
+      end
+
+      # used for testing connection auto-recovery
+      def conn_close(key)
+        c = get_connection_by_key(key)
+        c && c.close_connection_after_writing
+      end
+ 
+      # used for testing connection auto-recovery
+      def conn_error?(key)
+        c = get_connection_by_key(key)
+        c && c.error?
+      end
+      
+      # used for testing connection auto-recovery
+      def get_slotname_by_key(key)
+        @slots[keyslot(key)][:name] rescue nil
+      end
+
     end
   end
 end

@@ -342,6 +342,9 @@ module EventMachine
         @db             = (options[:db] || 0).to_i
         @password       = options[:password]
         @logger         = options[:logger]
+        @reconn_timer   = options[:reconn_timer] || 0.2 # reconnect after second
+        @redis_callbacks= []
+
         @error_callback = lambda do |code|
           err = RedisError.new
           err.code = code
@@ -365,10 +368,13 @@ module EventMachine
       def connection_completed
         log :debug, "Connected to #{@host}:#{@port}"
 
-        @redis_callbacks = []
+        while @redis_callbacks.size > 0
+          processor, blk = @redis_callbacks.shift
+          blk.call(TimeoutError.new) if blk
+        end
+
         @previous_multibulks = []
         @multibulk_n     = false
-        @reconnecting    = false
         @connected       = true
 
         succeed
@@ -463,19 +469,15 @@ module EventMachine
 
       def unbind(reason)
         log :debug, "Disconnected"
-
-        if @connected || @reconnecting
-          EM.add_timer(1) do
-            @logger.debug { "Reconnecting to #{@host}:#{@port}" }  if @logger
-            reconnect @host, @port
-            auth_and_select_db
-          end
-          @connected = false
-          @reconnecting = true
-          @deferred_status = nil
-        else
-          @error_callback.call ConnectionError("Unable to connect to redis server: #{reason}")
+        
+        # keep re-connecting
+        EM.add_timer(@reconn_timer) do
+          @logger.debug { "Reconnecting to #{@host}:#{@port}" }  if @logger
+          reconnect @host, @port
+          auth_and_select_db
         end
+        @connected = false
+        @deferred_status = nil
       end
 
       private

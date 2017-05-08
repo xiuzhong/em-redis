@@ -6,7 +6,7 @@ module EventMachine
 
       class ParserError < StandardError; end
       class ProtocolError < StandardError; end
-      
+
       class ConnectionError < StandardError; end
       class TimeoutError < StandardError; end
 
