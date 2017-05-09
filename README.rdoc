@@ -31,7 +31,7 @@ Like any Deferrable eventmachine-based protocol implementation, using EM-Redis-C
     ]
 
     rc = EM::Protocols::RedisCluster.new(startup_nodes, logger: Logger.new(STDOUT), reconn_timer: 0.5)
-    # callback when cluster slots information has been retrieved
+
     rc.mapped_hmset("foo", {bar: 1, timestamp: Time.now.to_s}) do |rsp|
       if rsp.is_a?(StandardError)
         # handle error
