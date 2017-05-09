@@ -351,7 +351,7 @@ module EventMachine
       end
 
       def log(severity, msg)
-        @logger && @logger.send(severity, "em_redis_cluster: #{msg}")
+        @logger && @logger.send(severity, "em_redis: #{msg}")
       end
 
       def auth_and_select_db

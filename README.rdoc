@@ -47,12 +47,15 @@ Like any Deferrable eventmachine-based protocol implementation, using EM-Redis-C
     {:host => "127.0.0.1", :port => 7001},
   ]
 
-  rc = EM::Protocols::RedisCluster.new(startup_nodes) do |r|
-    # callback when cluster slots information has been retrieved
-    rc.mapped_hmset("device:#{sid}", {id: sid.to_s, timestamp: Time.now.to_s}) do |rsp|
+  rc = EM::Protocols::RedisCluster.new(startup_nodes)
+  # callback when cluster slots information has been retrieved
+  rc.mapped_hmset("device:#{id}", {id: id.to_s, timestamp: Time.now.to_s}) do |rsp|
+    if rsp.is_a?(StandardError)
+      # handle error
+    else
       p rsp
-      EM.stop
     end
+    EM.stop
   end
 
 To run tests on a Redis server (currently compatible with 2.2)

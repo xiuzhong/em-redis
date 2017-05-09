@@ -444,3 +444,4 @@ EM.describe EM::Protocols::Redis, "when reconnecting" do
     end
   end
 end
+

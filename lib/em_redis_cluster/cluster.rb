@@ -41,11 +41,16 @@ module EventMachine
         # Redis Cluster does not support multiple databases like the stand alone version of Redis. 
         # There is just database 0 and the SELECT command is not allowed
         @opt.delete(:db)
+        @logger = @opt[:logger]
 
         @refresh_table_asap = false
         @slots_initialized = false
         @command_before_init = []
         initialize_slots_cache {|c| yield(c) if block_given?}
+      end
+
+      def log(severity, msg)
+        @logger && @logger.send(severity, "em_redis_cluster: #{msg}")
       end
 
       def ready?
@@ -116,6 +121,8 @@ module EventMachine
               next
             end
           end
+
+          log :debug, "RedisCluster: #{@nodes}"
 
           yield(self) if block_given?
 
@@ -249,8 +256,10 @@ module EventMachine
             if rsp.is_a?(RedisError)
               errv = rsp.to_s.split
               if errv[0] == "MOVED" || errv[0] == "ASK"
+                log :debug, rsp.to_s
+
                 newslot = errv[1].to_i
-                node_ip, node_port = errv[2].split(":")
+                node_ip, node_port = errv[2].split(":").map{|x|x.strip}
 
                 if errv[0] == "ASK"
                   asking = true
@@ -268,7 +277,7 @@ module EventMachine
               callback && callback.call(rsp)
               break
             end
-            
+
             ttl -= 1
           end
           
